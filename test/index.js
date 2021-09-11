@@ -14,14 +14,14 @@ var fs = require('fs'),
 describe('gulp-awspublish', function () {
   this.timeout(10000);
 
-  var credentials = process.env.TRAVIS
+  var credentials = process.env.CI
       ? {
           params: {
-            Bucket: process.env.bucket + '-' + process.env.TRAVIS_NODE_VERSION,
+            Bucket: process.env.AWS_S3_BUCKET + '-' + process.env.NODE_VERSION,
           },
           credentials: {
-            accessKeyId: process.env.accessKeyId,
-            secretAccessKey: process.env.secretAccessKey,
+            accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
             signatureVersion: 'v3',
           },
         }
