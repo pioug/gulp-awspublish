@@ -4,6 +4,9 @@
     "mocha": true,
     "node": true
   },
+  "parserOptions": {
+    "ecmaVersion": 2021
+  },
   "extends": "eslint:recommended",
   "parserOptions": {
     "ecmaVersion": 2021

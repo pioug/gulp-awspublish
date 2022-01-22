@@ -1,20 +1,20 @@
 'use strict';
 
-var fs = require('fs'),
-  path = require('path'),
-  zlib = require('zlib'),
-  chai = require('chai'),
-  es = require('event-stream'),
-  Vinyl = require('vinyl'),
-  through = require('through2'),
-  clone = require('clone'),
-  awspublish = require('../'),
-  expect = chai.expect;
+const fs = require('fs');
+const path = require('path');
+const zlib = require('zlib');
+const chai = require('chai');
+const es = require('event-stream');
+const Vinyl = require('vinyl');
+const through = require('through2');
+const clone = require('clone');
+const awspublish = require('../');
+const expect = chai.expect;
 
 describe('gulp-awspublish', function () {
   this.timeout(10000);
 
-  var credentials = process.env.CI
+  const credentials = process.env.CI
       ? {
           params: {
             Bucket: process.env.AWS_S3_BUCKET + '-' + process.env.NODE_VERSION,
@@ -31,44 +31,46 @@ describe('gulp-awspublish', function () {
   // remove files
   before(function (done) {
     try {
-      fs.unlinkSync(path.join(__dirname, publisher.getCacheFilename()));
+      fs.unlinkSync(path.join(__dirname, '..', publisher.cacheFilename));
     } catch (err) {}
     try {
-      fs.unlinkSync(path.join(__dirname, '../testCacheFile'));
+      fs.unlinkSync(path.join(__dirname, '..', 'testCacheFile'));
     } catch (err) {}
-    publisher._cache = {};
+    Object.keys(publisher.cacheObject).forEach(
+      (key) => delete publisher.cacheObject[key]
+    );
 
-    var deleteParams = awspublish._buildDeleteMultiple([
-      'test/hello.txt',
-      'test/hello2.txt',
-      'test/hello3.txt',
-      'test/hello.txtgz',
-    ]);
-
+    const deleteParams = awspublish._buildDeleteMultiple(
+      publisher.client.config.params.Bucket,
+      [
+        'test/hello.txt',
+        'test/hello2.txt',
+        'test/hello3.txt',
+        'test/hello.txtgz',
+      ]
+    );
     publisher.client.deleteObjects(deleteParams[0], done);
   });
 
   after(function () {
     try {
-      fs.unlinkSync(path.join(__dirname, publisher.getCacheFilename()));
+      fs.unlinkSync(path.join(__dirname, '..', publisher.cacheFilename));
     } catch (err) {}
     try {
-      fs.unlinkSync(path.join(__dirname, '../testCacheFile'));
+      fs.unlinkSync(path.join(__dirname, '..', 'testCacheFile'));
     } catch (err) {}
   });
 
   describe('Publish', function () {
     it('should emit error when using invalid bucket', function (done) {
-      var badCredentials, badPublisher, stream;
-
-      badCredentials = clone(credentials);
+      const badCredentials = clone(credentials);
       badCredentials.params.Bucket = 'fake-bucket';
-      (badPublisher = awspublish.create(badCredentials)),
-        (stream = badPublisher.publish());
+      const badPublisher = awspublish.create(badCredentials);
+      const stream = badPublisher.publish();
 
       stream.on('error', function (err) {
         expect(err).to.be.ok;
-        expect(err.statusCode).to.eq(403);
+        expect(err['$response'].statusCode).to.eq(403);
         done();
       });
 
@@ -84,9 +86,9 @@ describe('gulp-awspublish', function () {
     });
 
     it('should produce gzip file with S3 headers', function (done) {
-      var gzip = awspublish.gzip({ ext: '.gz' });
-      var contents = Buffer.from('hello world');
-      var srcFile = new Vinyl({
+      const gzip = awspublish.gzip({ ext: '.gz' });
+      const contents = Buffer.from('hello world');
+      const srcFile = new Vinyl({
         path: '/test/hello.txt',
         base: '/',
         contents: contents,
@@ -116,8 +118,8 @@ describe('gulp-awspublish', function () {
     });
 
     it('should upload gzip file', function (done) {
-      var gzip = awspublish.gzip({ ext: '.gz' }),
-        stream = gzip.pipe(publisher.publish());
+      const gzip = awspublish.gzip({ ext: '.gz' });
+      const stream = gzip.pipe(publisher.publish());
 
       gzip.write(
         new Vinyl({
@@ -135,7 +137,10 @@ describe('gulp-awspublish', function () {
             'text/plain; charset=utf-8'
           );
           publisher.client.headObject(
-            { Key: 'test/hello.txt.gz' },
+            {
+              Bucket: publisher.client.config.params.Bucket,
+              Key: 'test/hello.txt.gz',
+            },
             function (err, res) {
               expect(res.ETag).to.exist;
               done(err);
@@ -148,7 +153,7 @@ describe('gulp-awspublish', function () {
     });
 
     it('should consider size of gzip files with smaller', function (done) {
-      var gzip = awspublish.gzip({ ext: '.gz', smaller: true });
+      const gzip = awspublish.gzip({ ext: '.gz', smaller: true });
       gzip.write(
         new Vinyl({
           path: '/test/hello.txt',
@@ -156,7 +161,7 @@ describe('gulp-awspublish', function () {
           contents: Buffer.from(''), // zero-length file is always larger compressed
         })
       );
-      var hello2 = Buffer.from('hello world'.repeat(10));
+      const hello2 = Buffer.from('hello world'.repeat(10));
       gzip.write(
         new Vinyl({
           path: '/test/hello2.txt',
@@ -190,11 +195,11 @@ describe('gulp-awspublish', function () {
     });
 
     it('should create new file on s3 with headers', function (done) {
-      var headers = {
+      const headers = {
         'Cache-Control': 'max-age=315360000, no-transform, public',
       };
 
-      var stream = publisher.publish(headers);
+      const stream = publisher.publish(headers);
       stream.write(
         new Vinyl({
           path: '/test/hello.txt',
@@ -228,7 +233,10 @@ describe('gulp-awspublish', function () {
             files[0].contents.length
           );
           publisher.client.headObject(
-            { Key: 'test/hello.txt' },
+            {
+              Bucket: publisher.client.config.params.Bucket,
+              Key: 'test/hello.txt',
+            },
             function (err, res) {
               expect(res.ETag).to.exist;
               done(err);
@@ -241,7 +249,7 @@ describe('gulp-awspublish', function () {
     });
 
     it('should not send s3 header x-amz-acl if option {noAcl: true}', function (done) {
-      var stream = publisher.publish({}, { noAcl: true });
+      const stream = publisher.publish({}, { noAcl: true });
       stream.write(
         new Vinyl({
           path: '/test/hello3.txt',
@@ -264,7 +272,10 @@ describe('gulp-awspublish', function () {
             files[0].contents.length
           );
           publisher.client.headObject(
-            { Key: 'test/hello.txt' },
+            {
+              Bucket: publisher.client.config.params.Bucket,
+              Key: 'test/hello.txt',
+            },
             function (err, res) {
               expect(res.ETag).to.exist;
               done(err);
@@ -277,7 +288,7 @@ describe('gulp-awspublish', function () {
     });
 
     it('should update existing file on s3', function (done) {
-      var stream = publisher.publish();
+      const stream = publisher.publish();
       stream.pipe(
         es.writeArray(function (err, files) {
           expect(err).not.to.exist;
@@ -299,7 +310,7 @@ describe('gulp-awspublish', function () {
     });
 
     it('can skip updating an existing file on s3 (createOnly)', function (done) {
-      var stream = publisher.publish(
+      const stream = publisher.publish(
         {},
         {
           createOnly: true,
@@ -326,7 +337,7 @@ describe('gulp-awspublish', function () {
     });
 
     it('should skip file update', function (done) {
-      var stream = publisher.publish();
+      const stream = publisher.publish();
       stream.pipe(
         es.writeArray(function (err, files) {
           expect(err).not.to.exist;
@@ -348,17 +359,21 @@ describe('gulp-awspublish', function () {
     });
 
     it('should have a the correct default cachefile name', function (done) {
-      var publisherWithDefaultCache = awspublish.create(credentials),
-        stream = publisherWithDefaultCache.publish(),
-        cache = stream.pipe(publisherWithDefaultCache.cache());
+      const publisherWithDefaultCache = awspublish.create(credentials);
+      const stream = publisherWithDefaultCache.publish();
+      const cache = stream.pipe(publisherWithDefaultCache.cache());
 
       cache.on('finish', function () {
-        expect(publisherWithDefaultCache._cacheFile).to.equal(
+        expect(publisherWithDefaultCache.cacheFilename).to.equal(
           '.awspublish-' + credentials.params.Bucket
         );
         expect(
           fs.accessSync(
-            path.join(__dirname, '../.awspublish-' + credentials.params.Bucket),
+            path.join(
+              __dirname,
+              '..',
+              '.awspublish-' + credentials.params.Bucket
+            ),
             fs.F_OK
           )
         ).to.be.undefined;
@@ -369,16 +384,18 @@ describe('gulp-awspublish', function () {
     });
 
     it('should be able to use custom cachefile names', function (done) {
-      var publisherWithCustomCache = awspublish.create(credentials, {
-          cacheFileName: 'testCacheFile',
-        }),
-        stream = publisherWithCustomCache.publish(),
-        cache = stream.pipe(publisherWithCustomCache.cache());
+      const publisherWithCustomCache = awspublish.create(credentials, {
+        cacheFileName: 'testCacheFile',
+      });
+      const stream = publisherWithCustomCache.publish();
+      const cache = stream.pipe(publisherWithCustomCache.cache());
 
       cache.on('finish', function () {
-        expect(publisherWithCustomCache._cacheFile).to.equal('testCacheFile');
+        expect(publisherWithCustomCache.cacheFilename).to.equal(
+          'testCacheFile'
+        );
         expect(
-          fs.accessSync(path.join(__dirname, '../testCacheFile'), fs.F_OK)
+          fs.accessSync(path.join(__dirname, '..', '/testCacheFile'), fs.F_OK)
         ).to.be.undefined;
         done();
       });
@@ -387,8 +404,8 @@ describe('gulp-awspublish', function () {
     });
 
     it('should be able to use the cache', function (done) {
-      var stream = publisher.publish(),
-        cache = stream.pipe(publisher.cache());
+      const stream = publisher.publish();
+      const cache = stream.pipe(publisher.cache());
 
       stream.write(
         new Vinyl({
@@ -399,7 +416,7 @@ describe('gulp-awspublish', function () {
       );
 
       cache.on('finish', function () {
-        expect(publisher._cache).to.have.ownProperty('test/hello.txt');
+        expect(publisher.cacheObject).to.have.ownProperty('test/hello.txt');
         done();
       });
 
@@ -407,7 +424,7 @@ describe('gulp-awspublish', function () {
     });
 
     it('should mark file as cached', function (done) {
-      var stream = publisher.publish();
+      const stream = publisher.publish();
       stream.pipe(
         es.writeArray(function (err, files) {
           expect(err).not.to.exist;
@@ -429,7 +446,7 @@ describe('gulp-awspublish', function () {
     });
 
     it('should force upload', function (done) {
-      var stream = publisher.publish({}, { force: true });
+      const stream = publisher.publish({}, { force: true });
       stream.pipe(
         es.writeArray(function (err, files) {
           expect(err).not.to.exist;
@@ -451,7 +468,7 @@ describe('gulp-awspublish', function () {
     });
 
     it('should simulate file upload on s3', function (done) {
-      var stream = publisher.publish(null, { simulate: true });
+      const stream = publisher.publish({}, { simulate: true });
       stream.write(
         new Vinyl({
           path: '/test/simulate.txt',
@@ -466,9 +483,12 @@ describe('gulp-awspublish', function () {
           expect(files).to.have.length(1);
           expect(files[0].s3.path).to.eq('test/simulate.txt');
           publisher.client.headObject(
-            { Key: '/test/simulate.txt' },
+            {
+              Bucket: publisher.client.config.params.Bucket,
+              Key: '/test/simulate.txt',
+            },
             function (err) {
-              expect(err.statusCode).to.eq(404);
+              expect(err['$response'].statusCode).to.eq(404);
               done();
             }
           );
@@ -479,7 +499,7 @@ describe('gulp-awspublish', function () {
     });
 
     it('should publish files with unknown extension', function (done) {
-      var stream = publisher.publish();
+      const stream = publisher.publish();
       stream.pipe(
         es.writeArray(function (err, files) {
           expect(err).not.to.exist;
@@ -510,20 +530,23 @@ describe('gulp-awspublish', function () {
   describe('Sync', function () {
     // remove files
     before(function (done) {
-      var deleteParams = awspublish._buildDeleteMultiple([
-        'test/hello.txt',
-        'test/hello2.txt',
-        'test/hello3.txt',
-        'test/hello.txtgz',
-        'test/hello.txt.gz',
-        'test/hello.unknown',
-      ]);
+      const deleteParams = awspublish._buildDeleteMultiple(
+        publisher.client.config.params.Bucket,
+        [
+          'test/hello.txt',
+          'test/hello2.txt',
+          'test/hello3.txt',
+          'test/hello.txtgz',
+          'test/hello.txt.gz',
+          'test/hello.unknown',
+        ]
+      );
       publisher.client.deleteObjects(deleteParams[0], done);
     });
 
     // add some dummy file
     ['bar', 'foo/1', 'foo/2', 'foo/3'].forEach(function (name) {
-      var file = {
+      const file = {
         s3: {
           path: name + '.txt',
           headers: { 'Content-Type': 'text/plain; charset=utf-8' },
@@ -532,18 +555,21 @@ describe('gulp-awspublish', function () {
       };
 
       beforeEach(function (done) {
-        var params = awspublish._toAwsParams(file);
+        const params = awspublish._toAwsParams(
+          publisher.client.config.params.Bucket,
+          file
+        );
         publisher.client.putObject(params, done);
       });
     });
 
     it('should sync bucket with published data', function (done) {
-      var stream = through.obj();
+      const stream = through.obj();
 
       stream.pipe(publisher.sync('foo')).pipe(
         es.writeArray(function (err, arr) {
           expect(err).to.not.exist;
-          var deleted = arr
+          const deleted = arr
             .filter(function (file) {
               return file.s3 && file.s3.state === 'delete';
             })
@@ -607,8 +633,12 @@ describe('gulp-awspublish', function () {
       stream.write({ s3: { path: 'foo/1.txt' } });
       stream.end();
     });
+
     it('chunks file deletion requests into 1K chunks', function () {
-      var res = awspublish._buildDeleteMultiple(new Array(1001).fill('test'));
+      const res = awspublish._buildDeleteMultiple(
+        publisher.client.config.params.Bucket,
+        new Array(1001).fill('test')
+      );
       expect(res.length).to.eq(2);
       expect(res[1].Delete.Objects.length).to.eq(1);
     });
