@@ -17,24 +17,24 @@ Then, add it to your `gulpfile.js`:
 ```javascript
 var awspublish = require("gulp-awspublish");
 
-gulp.task("publish", function() {
+gulp.task("publish", function () {
   // create a new publisher using S3 options
   // http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#constructor-property
   var publisher = awspublish.create(
     {
       region: "your-region-id",
       params: {
-        Bucket: "..."
-      }
+        Bucket: "...",
+      },
     },
     {
-      cacheFileName: "your-cache-location"
+      cacheFileName: "your-cache-location",
     }
   );
 
   // define custom headers
   var headers = {
-    "Cache-Control": "max-age=315360000, no-transform, public"
+    "Cache-Control": "max-age=315360000, no-transform, public",
     // ...
   };
 
@@ -171,12 +171,12 @@ Hardcoded credentials (**Note**: We recommend you **not** hard-code credentials 
 var publisher = awspublish.create({
   region: "your-region-id",
   params: {
-    Bucket: "..."
+    Bucket: "...",
   },
   credentials: {
     accessKeyId: "akid",
-    secretAccessKey: "secret"
-  }
+    secretAccessKey: "secret",
+  },
 });
 ```
 
@@ -188,9 +188,9 @@ var AWS = require("aws-sdk");
 var publisher = awspublish.create({
   region: "your-region-id",
   params: {
-    Bucket: "..."
+    Bucket: "...",
   },
-  credentials: new AWS.SharedIniFileCredentials({ profile: "myprofile" })
+  credentials: new AWS.SharedIniFileCredentials({ profile: "myprofile" }),
 });
 ```
 
@@ -284,7 +284,7 @@ gulp
   .pipe(publisher.sync())
   .pipe(
     awspublish.reporter({
-      states: ["create", "update", "delete"]
+      states: ["create", "update", "delete"],
     })
   );
 ```
@@ -301,7 +301,7 @@ You can use `gulp-rename` to rename your files on s3
 gulp
   .src("examples/fixtures/*.js")
   .pipe(
-    rename(function(path) {
+    rename(function (path) {
       path.dirname += "/s3-examples";
       path.basename += "-s3";
     })

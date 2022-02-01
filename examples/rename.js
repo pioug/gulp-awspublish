@@ -1,9 +1,9 @@
-var fs = require('fs');
-var gulp = require('gulp');
-var rename = require('gulp-rename');
-var awspublish = require('../');
+var fs = require("fs");
+var gulp = require("gulp");
+var rename = require("gulp-rename");
+var awspublish = require("../");
 
-var credentials = JSON.parse(fs.readFileSync('aws-credentials.json', 'utf8'));
+var credentials = JSON.parse(fs.readFileSync("aws-credentials.json", "utf8"));
 var publisher = awspublish.create(credentials);
 
 // gulp.src('examples/fixtures/*.js')
@@ -19,10 +19,10 @@ var publisher = awspublish.create(credentials);
 //   .pipe(awspublish.reporter());
 
 gulp
-  .src('public/assets/**', { cwd: 'examples' })
+  .src("public/assets/**", { cwd: "examples" })
   .pipe(
     rename(function (path) {
-      path.dirname = 'public/assets/' + path.dirname;
+      path.dirname = "public/assets/" + path.dirname;
     })
   )
   .pipe(publisher.publish())
